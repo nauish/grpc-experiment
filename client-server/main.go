@@ -8,7 +8,6 @@ import (
 	"log"
 	"net/http"
 	"sync"
-	"time"
 
 	"github.com/gofiber/fiber/v2"
 	pb "github.com/nauish/go-grpc-server/proto"
@@ -63,17 +62,18 @@ func main() {
 			defer wg.Done()
 			conn, err := grpc.Dial(*addr, grpc.WithTransportCredentials(insecure.NewCredentials()))
 			if err != nil {
-				log.Fatalf("did not connect: %v", err)
+				log.Printf("did not connect: %v", err)
+				return
 			}
 			defer conn.Close()
 			client := pb.NewGreeterClient(conn)
 
-			// Contact the server and print out its response.
-			ctx, cancel := context.WithTimeout(context.Background(), time.Second)
-			defer cancel()
+			// remove cancel
+			ctx := context.Background()
 			r, err := client.SayHello(ctx, &pb.HelloRequest{Name: *grpcName})
 			if err != nil {
-				log.Fatalf("could not greet: %v", err)
+				log.Printf("could not greet: %v", err)
+				return
 			}
 			responses[i] = r
 		}
