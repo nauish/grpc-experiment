@@ -25,10 +25,6 @@ type ResponseData struct {
 	Data string `json:"data"`
 }
 
-// type Message struct {
-// 	Message string `json:"message"`
-// }
-
 func sendHTTPRequest(url string, wg *sync.WaitGroup) ResponseData {
 	defer wg.Done()
 
@@ -56,22 +52,39 @@ func main() {
 	app.Get("/grpc", func(c *fiber.Ctx) error {
 		flag.Parse()
 		// Set up a connection to the server.
-		conn, err := grpc.Dial(*addr, grpc.WithTransportCredentials(insecure.NewCredentials()))
-		if err != nil {
-			log.Fatalf("did not connect: %v", err)
-		}
-		defer conn.Close()
-		client := pb.NewGreeterClient(conn)
+		numRequests := 10
 
-		// Contact the server and print out its response.
-		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
-		defer cancel()
-		r, err := client.SayHello(ctx, &pb.HelloRequest{Name: *grpcName})
-		if err != nil {
-			log.Fatalf("could not greet: %v", err)
+		var wg sync.WaitGroup
+		wg.Add(numRequests)
+
+		responses := make([]*pb.HelloReply, numRequests)
+
+		sendRequest := func(i int) {
+			defer wg.Done()
+			conn, err := grpc.Dial(*addr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+			if err != nil {
+				log.Fatalf("did not connect: %v", err)
+			}
+			defer conn.Close()
+			client := pb.NewGreeterClient(conn)
+
+			// Contact the server and print out its response.
+			ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+			defer cancel()
+			r, err := client.SayHello(ctx, &pb.HelloRequest{Name: *grpcName})
+			if err != nil {
+				log.Fatalf("could not greet: %v", err)
+			}
+			responses[i] = r
 		}
 
-		return c.JSON(r)
+		for i := 0; i < numRequests; i++ {
+			go sendRequest(i)
+		}
+
+		wg.Wait()
+
+		return c.JSON(responses)
 	})
 
 	app.Get("/go-http", func(c *fiber.Ctx) error {
