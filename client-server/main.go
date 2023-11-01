@@ -16,7 +16,7 @@ import (
 )
 
 var (
-	addr     = flag.String("addr", "localhost:50051", "the address to connect to")
+	addr     = flag.String("addr", ":50051", "the address to connect to")
 	grpcName = flag.String("name", "gRPC", "Name to greet")
 )
 
@@ -48,6 +48,13 @@ func sendHTTPRequest(url string, wg *sync.WaitGroup) ResponseData {
 func main() {
 	app := fiber.New()
 
+	conn, err := grpc.Dial(*addr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	if err != nil {
+		log.Fatalf("Failed to connect: %v", err)
+	}
+	defer conn.Close()
+	client := pb.NewGreeterClient(conn)
+
 	app.Get("/grpc", func(c *fiber.Ctx) error {
 		flag.Parse()
 		// Set up a connection to the server.
@@ -60,15 +67,7 @@ func main() {
 
 		sendRequest := func(i int) {
 			defer wg.Done()
-			conn, err := grpc.Dial(*addr, grpc.WithTransportCredentials(insecure.NewCredentials()))
-			if err != nil {
-				log.Printf("did not connect: %v", err)
-				return
-			}
-			defer conn.Close()
-			client := pb.NewGreeterClient(conn)
 
-			// remove cancel
 			ctx := context.Background()
 			r, err := client.SayHello(ctx, &pb.HelloRequest{Name: *grpcName})
 			if err != nil {
